@@ -141,7 +141,8 @@ function render(){
    liveMap.setView(pos, 4);
    setTimeout(()=>liveMap.invalidateSize(),100);
  }
- let options=shuffle([q.n,...shuffle(questions.filter(x=>x.n!==q.n)).slice(0,3).map(x=>x.n)]);
+ let sameType = questions.filter(x => x.c === q.c && x.n !== q.n);
+ let options=shuffle([q.n,...shuffle(sameType).slice(0,3).map(x=>x.n)]);
  const box=document.getElementById('answers');box.innerHTML='';
  options.forEach(opt=>{let b=document.createElement('button');b.className='answer';b.textContent=opt;b.onclick=()=>choose(b,opt,q.n);box.appendChild(b)});
  document.getElementById('feedback').textContent='';

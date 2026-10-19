@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>تضاريس وطننا العربي | لعبة مالك</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--navy:#12366a;--blue:#1389d5;--purple:#7a1fa2;--gold:#ffd64d;--bg:#f4f8ff}
+*{box-sizing:border-box}body{margin:0;font-family:Tahoma,Arial,sans-serif;background:linear-gradient(135deg,#eaf8ff,#fff5d9);color:#17233d}
+header{background:linear-gradient(100deg,#0869bd,#7224a8);color:white;padding:18px 14px;text-align:center}
+header h1{margin:0 0 6px;font-size:clamp(24px,4vw,38px)}header p{margin:0;font-size:15px}
+.wrap{max-width:1250px;margin:auto;padding:14px;display:grid;grid-template-columns:minmax(300px,1.05fr) minmax(300px,1.3fr);gap:14px}
+.panel{background:white;border-radius:18px;padding:16px;box-shadow:0 5px 18px #18345c1c;border:2px solid #dce9ff}
+.stats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.pill{background:#e8f4ff;border-radius:12px;padding:8px 12px;font-weight:bold;color:#154d84}
+#map{height:500px;border-radius:14px;border:2px solid #b7d7ff;z-index:1}
+.qtop{display:flex;align-items:center;justify-content:space-between;gap:8px}.num{background:var(--gold);border:2px solid #e5ad00;border-radius:50%;width:48px;height:48px;display:grid;place-items:center;font-size:22px;font-weight:bold;flex-shrink:0}
+h2{font-size:23px;margin:10px 0 8px;color:#173f7d}.hint{color:#4c5b72;margin:0 0 12px;font-size:15px}
+.choices{display:grid;gap:9px}.choice{padding:12px 10px;border:2px solid #d6e3f5;border-radius:12px;background:#f9fbff;text-align:right;font-size:17px;font-family:inherit;cursor:pointer;transition:.15s}.choice:hover{border-color:#398de2;background:#edf7ff}.choice:disabled{cursor:default}.choice.correct{background:#e3f8e9;border-color:#1caa54}.choice.wrong{background:#fff0f0;border-color:#df4d4d}
+.feedback{min-height:28px;font-weight:bold;margin:12px 0 5px}.buttons{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.mainbtn{border:0;border-radius:12px;background:#126dc0;color:white;padding:12px 17px;font-weight:bold;font-size:16px;cursor:pointer}.mainbtn:disabled{opacity:.45;cursor:default}.secondary{background:#6b7280}.progress{height:10px;background:#e6edf7;border-radius:20px;overflow:hidden;margin:8px 0 14px}.progress span{display:block;height:100%;width:0;background:linear-gradient(90deg,#10a66a,#b6e23d);transition:width .25s}.small{font-size:13px;color:#667085;line-height:1.7}
+.leaflet-tooltip.numbertag{background:#e11d48;color:white;border:2px solid white;border-radius:50%;width:32px;height:32px;text-align:center;line-height:27px;font-size:17px;font-weight:bold;box-shadow:0 2px 8px #0005;padding:0}
+.finish{display:none;text-align:center;padding:20px}.finish h2{font-size:30px}
+@media(max-width:760px){.wrap{grid-template-columns:1fr;padding:9px}#map{height:390px}.panel{padding:12px}.choice{font-size:16px}}
+</style>
+</head>
+<body>
+<header><h1>🗺️ تضاريس وطننا العربي</h1><p>لعبة تفاعلية مع مالك • ٥٠ سؤالًا على الخريطة</p></header>
+<div class="wrap">
+<section class="panel">
+ <div class="stats"><span class="pill" id="counter">السؤال ١ من ٥٠</span><span class="pill" id="score">الدرجة: ٠</span><span class="pill" id="kind">نوع الموقع</span></div>
+ <div class="progress"><span id="bar"></span></div>
+ <div id="map"></div>
+ <p class="small">الخريطة تفاعلية وتُظهر حدود الدول. حرّك الخريطة أو كبّرها عند الحاجة. يلزم اتصال بالإنترنت لتحميل الخريطة.</p>
+</section>
+<section class="panel">
+ <div id="quiz">
+  <div class="qtop"><div><h2 id="questionText">انظر إلى الرقم على الخريطة، ثم اختر الإجابة الصحيحة.</h2><p class="hint" id="hint"></p></div><div class="num" id="qnum">١</div></div>
+  <div class="choices" id="choices"></div>
+  <div class="feedback" id="feedback" aria-live="polite"></div>
+  <div class="buttons"><button class="mainbtn" id="next" disabled>السؤال التالي ←</button><button class="mainbtn secondary" id="restart">إعادة اللعبة</button></div>
+ </div>
+ <div class="finish" id="finish"><h2>🎉 أحسنت!</h2><p id="finalscore"></p><p>راجع المواقع التي أخطأت فيها ثم أعد اللعب لتحسين نتيجتك.</p><button class="mainbtn" id="playagain">العب مرة أخرى</button></div>
+</section>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const questions = [{"name": "جبال البحر الأحمر", "kind": "جبال", "hint": "مصر والسودان على جانبي البحر الأحمر", "answer": "جبال البحر الأحمر", "coord": [26.5, 34.5]}, {"name": "جبال الحجاز", "kind": "جبال", "hint": "غرب المملكة العربية السعودية", "answer": "جبال الحجاز", "coord": [23.5, 40.0]}, {"name": "جبال عسير", "kind": "جبال", "hint": "جنوب غرب المملكة العربية السعودية", "answer": "جبال عسير", "coord": [18.5, 42.0]}, {"name": "مرتفعات اليمن", "kind": "جبال", "hint": "غرب اليمن", "answer": "مرتفعات اليمن", "coord": [14.8, 44.0]}, {"name": "جبال أطلس", "kind": "جبال", "hint": "شمال غرب أفريقيا", "answer": "جبال أطلس", "coord": [31.5, -5.0]}, {"name": "جبال زاجروس", "kind": "جبال", "hint": "شرق العراق قرب الحدود الإيرانية", "answer": "جبال زاجروس", "coord": [33.5, 46.0]}, {"name": "جبال عُمان", "kind": "جبال", "hint": "شمال سلطنة عُمان", "answer": "جبال عُمان", "coord": [23.5, 57.5]}, {"name": "جبال لبنان", "kind": "جبال", "hint": "غرب لبنان", "answer": "جبال لبنان", "coord": [34.2, 35.8]}, {"name": "جبال طوروس", "kind": "جبال", "hint": "شمال بلاد الشام قرب تركيا", "answer": "جبال طوروس", "coord": [37.0, 36.5]}, {"name": "جبل طوبقال", "kind": "جبال", "hint": "المغرب، ضمن جبال أطلس", "answer": "جبل طوبقال", "coord": [31.1, -7.9]}, {"name": "هضبة أفريقيا الشمالية", "kind": "هضاب", "hint": "تمتد في شمال أفريقيا من المحيط الأطلسي نحو الشرق", "answer": "هضبة أفريقيا الشمالية", "coord": [27.0, 2.0]}, {"name": "هضبة نجد", "kind": "هضاب", "hint": "وسط شبه الجزيرة العربية", "answer": "هضبة نجد", "coord": [24.0, 45.0]}, {"name": "هضبة حضرموت", "kind": "هضاب", "hint": "جنوب شبه الجزيرة العربية", "answer": "هضبة حضرموت", "coord": [15.8, 49.0]}, {"name": "هضبة بادية الشام", "kind": "هضاب", "hint": "شمال شبه الجزيرة العربية", "answer": "هضبة بادية الشام", "coord": [33.0, 38.5]}, {"name": "هضبة الصحراء الكبرى", "kind": "هضاب", "hint": "داخل شمال أفريقيا", "answer": "هضبة الصحراء الكبرى", "coord": [23.0, 15.0]}, {"name": "هضبة البحيرات الاستوائية", "kind": "هضاب", "hint": "شرق أفريقيا قرب منابع النيل", "answer": "هضبة البحيرات الاستوائية", "coord": [1.0, 32.5]}, {"name": "واحة سيوة", "kind": "واحات", "hint": "غرب مصر قرب الحدود الليبية", "answer": "واحة سيوة", "coord": [29.2, 25.5]}, {"name": "واحة الخارجة", "kind": "واحات", "hint": "الصحراء الغربية في مصر", "answer": "واحة الخارجة", "coord": [25.4, 30.6]}, {"name": "واحة الداخلة", "kind": "واحات", "hint": "الصحراء الغربية في مصر", "answer": "واحة الداخلة", "coord": [25.5, 28.9]}, {"name": "واحة الفرافرة", "kind": "واحات", "hint": "الصحراء الغربية في مصر", "answer": "واحة الفرافرة", "coord": [27.0, 27.0]}, {"name": "واحة الأحساء", "kind": "واحات", "hint": "شرق المملكة العربية السعودية", "answer": "واحة الأحساء", "coord": [25.4, 49.6]}, {"name": "واحة الجغبوب", "kind": "واحات", "hint": "شرق ليبيا قرب الحدود المصرية", "answer": "واحة الجغبوب", "coord": [29.7, 24.7]}, {"name": "واحة عين صالح", "kind": "واحات", "hint": "وسط الصحراء الجزائرية", "answer": "واحة عين صالح", "coord": [27.2, 2.5]}, {"name": "واحة توزر", "kind": "واحات", "hint": "جنوب غرب تونس", "answer": "واحة توزر", "coord": [33.9, 8.1]}, {"name": "سهول نهر النيل", "kind": "سهول", "hint": "على امتداد نهر النيل في مصر", "answer": "السهول الفيضية", "coord": [27.0, 31.2]}, {"name": "سهول دجلة والفرات", "kind": "سهول", "hint": "العراق", "answer": "السهول الفيضية", "coord": [32.5, 44.0]}, {"name": "سهول نهر الأردن", "kind": "سهول", "hint": "وادي الأردن", "answer": "السهول الفيضية", "coord": [31.8, 35.6]}, {"name": "السهول الساحلية على البحر المتوسط", "kind": "سهول", "hint": "على ساحل بلاد الشام", "answer": "السهول الساحلية", "coord": [33.8, 35.0]}, {"name": "السهول الساحلية للمغرب", "kind": "سهول", "hint": "على ساحل المحيط الأطلسي في المغرب", "answer": "السهول الساحلية", "coord": [33.5, -7.0]}, {"name": "السهول الساحلية للخليج العربي", "kind": "سهول", "hint": "شرق شبه الجزيرة العربية", "answer": "السهول الساحلية", "coord": [26.5, 51.5]}, {"name": "السهول الصحراوية", "kind": "سهول", "hint": "داخل الصحراء الكبرى", "answer": "السهول الصحراوية", "coord": [22.0, 10.0]}, {"name": "الكثبان الرملية في بحر الرمال العظيم", "kind": "كثبان رملية", "hint": "غرب مصر قرب الحدود الليبية", "answer": "الكثبان الرملية", "coord": [26.0, 25.0]}, {"name": "الكثبان الرملية في الربع الخالي", "kind": "كثبان رملية", "hint": "جنوب شرق شبه الجزيرة العربية", "answer": "الكثبان الرملية", "coord": [20.0, 51.0]}, {"name": "الكثبان الرملية في الصحراء الكبرى", "kind": "كثبان رملية", "hint": "جنوب الجزائر", "answer": "الكثبان الرملية", "coord": [20.0, 5.0]}, {"name": "الكثبان الرملية في صحراء النفود", "kind": "كثبان رملية", "hint": "شمال المملكة العربية السعودية", "answer": "الكثبان الرملية", "coord": [28.0, 40.0]}, {"name": "البحر المتوسط", "kind": "بحار", "hint": "شمال الوطن العربي", "answer": "البحر المتوسط", "coord": [35.0, 20.0]}, {"name": "البحر الأحمر", "kind": "بحار", "hint": "بين شمال شرق أفريقيا وشبه الجزيرة العربية", "answer": "البحر الأحمر", "coord": [20.0, 38.0]}, {"name": "الخليج العربي", "kind": "بحار", "hint": "شرق شبه الجزيرة العربية", "answer": "الخليج العربي", "coord": [27.5, 51.5]}, {"name": "بحر العرب", "kind": "بحار", "hint": "جنوب شبه الجزيرة العربية", "answer": "بحر العرب", "coord": [13.0, 58.0]}, {"name": "البحر الميت", "kind": "بحار", "hint": "بين الأردن وفلسطين", "answer": "البحر الميت", "coord": [31.5, 35.5]}, {"name": "خليج عدن", "kind": "بحار", "hint": "بين اليمن والصومال", "answer": "خليج عدن", "coord": [12.0, 47.0]}, {"name": "المحيط الأطلسي", "kind": "محيطات", "hint": "غرب المغرب وموريتانيا", "answer": "المحيط الأطلسي", "coord": [25.0, -17.0]}, {"name": "المحيط الهندي", "kind": "محيطات", "hint": "جنوب شبه الجزيرة العربية وشرق أفريقيا", "answer": "المحيط الهندي", "coord": [5.0, 60.0]}, {"name": "مضيق جبل طارق", "kind": "مضايق", "hint": "بين المغرب وإسبانيا", "answer": "مضيق جبل طارق", "coord": [35.9, -5.6]}, {"name": "مضيق باب المندب", "kind": "مضايق", "hint": "بين اليمن وجيبوتي", "answer": "مضيق باب المندب", "coord": [12.6, 43.3]}, {"name": "مضيق هرمز", "kind": "مضايق", "hint": "بين عُمان وإيران", "answer": "مضيق هرمز", "coord": [26.5, 56.5]}, {"name": "قناة السويس", "kind": "قنوات وممرات مائية", "hint": "شمال شرق مصر، تصل البحر المتوسط بالبحر الأحمر", "answer": "قناة السويس", "coord": [30.5, 32.3]}, {"name": "مضيق تيران", "kind": "مضايق", "hint": "عند مدخل خليج العقبة", "answer": "مضيق تيران", "coord": [28.0, 34.5]}, {"name": "وادي العلاقي", "kind": "أودية جافة", "hint": "جنوب شرق مصر", "answer": "وادي العلاقي", "coord": [22.5, 34.0]}, {"name": "وادي الدواسر", "kind": "أودية جافة", "hint": "جنوب وسط المملكة العربية السعودية", "answer": "وادي الدواسر", "coord": [20.5, 44.8]}];
+const arabCountries = new Set(["Egypt","Libya","Tunisia","Algeria","Morocco","Mauritania","Sudan","South Sudan","Somalia","Djibouti","Eritrea","Saudi Arabia","Yemen","Oman","United Arab Emirates","Qatar","Bahrain","Kuwait","Iraq","Jordan","Lebanon","Syria","Palestine","Israel","Comoros"]);
+const map = L.map('map').setView([25, 28], 3);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:9,attribution:'© OpenStreetMap'}).addTo(map);
+let countryLayer=null, marker=null, idx=0, score=0, answered=false, order=[...questions.keys()];
+const arabicDigits=n=>String(n).replace(/\d/g,d=>"٠١٢٣٤٥٦٧٨٩"[+d]);
+const questionLabels = {
+ 'جبال':'الجبل أو السلسلة الجبلية', 'هضاب':'الهضبة', 'واحات':'الواحة', 'سهول':'السهل أو المنطقة السهلية',
+ 'كثبان رملية':'منطقة الكثبان الرملية', 'بحار':'البحر أو الخليج', 'محيطات':'المحيط', 'مضايق':'المضيق',
+ 'قنوات وممرات مائية':'القناة المائية', 'أودية جافة':'الوادي الجاف'
+};
+const distractors = {
+ 'محيطات':['المحيط الأطلسي','المحيط الهندي','المحيط الهادئ','المحيط المتجمد الشمالي'],
+ 'قنوات وممرات مائية':['قناة السويس','قناة بنما','قناة كيل','قناة كورنث'],
+ 'أودية جافة':['وادي العلاقي','وادي الدواسر','وادي رم','وادي حلفا']
+};
+function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson').then(r=>r.json()).then(data=>{
+ countryLayer=L.geoJSON(data,{style:f=>{let nm=f.properties.ADMIN||f.properties.name||"";let ar=arabCountries.has(nm);return {color:ar?'#d97706':'#7b8da8',weight:ar?1.8:.65,fillColor:ar?'#f9df8c':'#e8eef5',fillOpacity:ar?.35:.12}}}).addTo(map);
+}).catch(()=>{});
+function choicesFor(q){
+ let pool = questions.filter(x=>x.kind===q.kind).map(x=>x.name).filter(n=>n!==q.name);
+ pool = [...new Set(pool)];
+ if(distractors[q.kind]) pool=[...pool,...distractors[q.kind].filter(n=>n!==q.name)];
+ pool=shuffle([...new Set(pool)]);
+ let opts=[q.name];
+ while(opts.length<4 && pool.length) opts.push(pool.shift());
+ // In small categories, use other named geographic features as plausible distractors.
+ if(opts.length<4){
+  const extra=shuffle(questions.map(x=>x.name).filter(n=>!opts.includes(n)));
+  while(opts.length<4 && extra.length) opts.push(extra.shift());
+ }
+ return shuffle(opts);
+}
+function questionPrompt(q){
+ const prompts={
+  'جبال':'ما اسم الجبل أو السلسلة الجبلية التي يشير إليها الرقم؟',
+  'هضاب':'ما اسم الهضبة التي يشير إليها الرقم؟',
+  'واحات':'ما اسم الواحة التي يشير إليها الرقم؟',
+  'سهول':'ما اسم السهل أو المنطقة السهلية التي يشير إليها الرقم؟',
+  'كثبان رملية':'أي منطقة من الكثبان الرملية يشير إليها الرقم؟',
+  'بحار':'ما اسم البحر أو الخليج الذي يشير إليه الرقم؟',
+  'محيطات':'ما اسم المحيط الذي يشير إليه الرقم؟',
+  'مضايق':'ما اسم المضيق الذي يشير إليه الرقم؟',
+  'قنوات وممرات مائية':'ما اسم القناة المائية التي يشير إليها الرقم؟',
+  'أودية جافة':'ما اسم الوادي الجاف الذي يشير إليه الرقم؟'
+ };
+ return prompts[q.kind] || 'ما اسم الموقع الجغرافي الذي يشير إليه الرقم؟';
+}
+
+function showQuestion(){
+ answered=false; const q=questions[order[idx]];
+ document.getElementById('counter').textContent=`السؤال ${arabicDigits(idx+1)} من ٥٠`;
+ document.getElementById('score').textContent=`الدرجة: ${arabicDigits(score)}`;
+ document.getElementById('kind').textContent=q.kind;
+ document.getElementById('qnum').textContent=arabicDigits(idx+1);
+ document.getElementById('questionText').textContent=questionPrompt(q);
+ document.getElementById('hint').textContent='';
+ document.getElementById('feedback').textContent='';
+ document.getElementById('next').disabled=true;
+ document.getElementById('bar').style.width=(idx/50*100)+'%';
+ if(marker)map.removeLayer(marker);
+ marker=L.marker(q.coord,{icon:L.divIcon({className:'',html:`<div style="background:#e11d48;color:white;border:3px solid white;border-radius:50%;width:36px;height:36px;line-height:30px;text-align:center;font-weight:bold;font-size:19px;box-shadow:0 2px 8px #0007">${idx+1}</div>`,iconSize:[36,36],iconAnchor:[18,18]})}).addTo(map);
+ map.flyTo(q.coord, Math.max(map.getZoom(),4), {duration:.5});
+ const c=document.getElementById('choices');c.innerHTML='';
+ choicesFor(q).forEach(opt=>{
+  const b=document.createElement('button');b.className='choice';b.textContent=opt;
+  b.onclick=()=>selectAnswer(b,opt,q);c.appendChild(b);
+ });
+}
+function selectAnswer(btn,opt,q){
+ if(answered)return;answered=true;
+ const buttons=[...document.querySelectorAll('.choice')];buttons.forEach(b=>b.disabled=true);
+ if(opt===q.name){score++;btn.classList.add('correct');document.getElementById('feedback').textContent='إجابة صحيحة! أحسنت يا بطل 🌟';document.getElementById('feedback').style.color='#13803d'}
+ else{btn.classList.add('wrong');buttons.find(b=>b.textContent===q.name)?.classList.add('correct');document.getElementById('feedback').textContent='ليست الإجابة الصحيحة. الإجابة الصحيحة: '+q.name;document.getElementById('feedback').style.color='#b42318'}
+ document.getElementById('score').textContent=`الدرجة: ${arabicDigits(score)}`;
+ document.getElementById('next').disabled=false;
+}
+function nextQuestion(){if(!answered)return;idx++;if(idx>=50){document.getElementById('quiz').style.display='none';document.getElementById('finish').style.display='block';document.getElementById('finalscore').textContent=`حصلت على ${arabicDigits(score)} من ٥٠ (${Math.round(score/50*100)}٪).`;document.getElementById('bar').style.width='100%';return}showQuestion()}
+function restart(){idx=0;score=0;order=shuffle([...questions.keys()]);document.getElementById('quiz').style.display='block';document.getElementById('finish').style.display='none';showQuestion()}
+document.getElementById('next').onclick=nextQuestion;document.getElementById('restart').onclick=restart;document.getElementById('playagain').onclick=restart;
+showQuestion();
+</script>
+</body></html>
